@@ -2,3 +2,10 @@ node_modules/
 data/scenarios.sqlite
 .DS_Store
 *.log
+
+# capstone_app (Streamlit)
+capstone_app/scenarios.sqlite
+capstone_app/.streamlit/secrets.toml
+capstone_app/__pycache__/
+capstone_app/**/__pycache__/
+capstone_app/venv/

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cpf-life-node",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "port": 4600
+    },
+    {
+      "name": "cpf-life-streamlit",
+      "runtimeExecutable": "streamlit",
+      "runtimeArgs": ["run", "capstone_app/streamlit_app.py", "--server.port", "8501", "--server.headless", "true"],
+      "port": 8501
+    }
+  ]
+}
