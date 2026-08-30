@@ -119,16 +119,23 @@ for col, q in zip(cols, EXAMPLE_QUESTIONS):
 if "chat_history" not in st.session_state:
     st.session_state["chat_history"] = []
 
+def render_markdown(text: str) -> None:
+    # Escape literal $ so st.markdown doesn't treat dollar amounts (e.g.
+    # "$350,000 ... $2,761") as LaTeX math delimiters, which mangles
+    # everything between them.
+    st.markdown(text.replace("$", "\\$"))
+
+
 for msg in st.session_state["chat_history"]:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+        render_markdown(msg["content"])
 
 user_input = st.chat_input("Ask about CPF LIFE…") or example_clicked
 
 if user_input:
     st.session_state["chat_history"].append({"role": "user", "content": user_input})
     with st.chat_message("user"):
-        st.markdown(user_input)
+        render_markdown(user_input)
 
     with st.chat_message("assistant"):
         if not api_key:
@@ -158,7 +165,7 @@ if user_input:
                         max_tokens=500,
                     )
                 answer = response.choices[0].message.content
-                st.markdown(answer)
+                render_markdown(answer)
             except Exception as e:
                 answer = f"⚠️ Something went wrong calling the LLM: {e}"
                 st.error(answer)
