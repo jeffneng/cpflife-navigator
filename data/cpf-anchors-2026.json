@@ -1,0 +1,51 @@
+{
+  "cohortYear": 2026,
+  "source": "CPF Board published payout estimates (BRS/FRS/ERS, Standard Plan, male, payout start age 65). Update this file each year when CPF Board revises its payout tables — nothing in /src or /server should need to change.",
+  "lastUpdated": "2026-08-30",
+
+  "notes": [
+    "CPF LIFE payouts are not produced by a public formula. `payoutAnchors` are calibration points (male, Standard Plan, start age 65) that the app interpolates between for other balances, then adjusts for gender, plan, and deferral using the multipliers below.",
+    "Balances between anchors are interpolated on the payout-per-dollar ratio, not on the payout amount directly.",
+    "Figures are estimates only and will drift from CPF Board's actual tables over time — recalibrate `payoutAnchors` yearly against the latest BRS/FRS/ERS illustrations."
+  ],
+
+  "payoutAnchors": [
+    { "balance": 110200, "monthlyPayout": 960,  "label": "BRS" },
+    { "balance": 220400, "monthlyPayout": 1640, "label": "FRS" },
+    { "balance": 440800, "monthlyPayout": 3180, "label": "ERS" }
+  ],
+
+  "genderFactor": {
+    "male": 1.0,
+    "female": 0.922
+  },
+
+  "planFactor": {
+    "standard": 1.0,
+    "basic": 0.875,
+    "escalating": 0.80
+  },
+
+  "escalatingPlan": {
+    "annualEscalationRate": 0.02,
+    "description": "Escalating Plan payouts increase by this rate each year after the first."
+  },
+
+  "deferral": {
+    "annualBonusRate": 0.0731,
+    "raInterestWhileDeferred": 0.04,
+    "description": "annualBonusRate approximates CPF's published ~42% cumulative payout increase for deferring from 65 to 70 (compounded). raInterestWhileDeferred is the ordinary RA interest rate applied to the deferred premium balance."
+  },
+
+  "lifeExpectancy": {
+    "male": 85,
+    "female": 88
+  },
+
+  "sliderRanges": {
+    "balance": { "min": 60000, "max": 600000, "step": 1000, "default": 220400 },
+    "startAge": { "min": 65, "max": 70, "step": 1, "default": 65 },
+    "extraTopUpRate": { "min": 0, "max": 6, "step": 0.1, "default": 0 },
+    "lifeExpectancyOverride": { "min": 78, "max": 95, "step": 1 }
+  }
+}

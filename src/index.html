@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPF LIFE Payout Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div>
+      <h1>CPF LIFE Payout Simulator</h1>
+      <p>Model your monthly annuity payout, lifetime total, and bequest decay using approximated CPF LIFE actuarial factors, calibrated to published 2026 figures.</p>
+    </div>
+    <div class="seal"><span>ESTIMATE<br>ONLY</span></div>
+  </div>
+
+  <div class="grid">
+
+    <!-- INPUT PANEL -->
+    <div class="panel">
+      <p class="panel-title">Your inputs</p>
+
+      <div class="field">
+        <label>Retirement Account balance <span class="val" id="balVal">$220,400</span></label>
+        <input type="range" id="balance" min="60000" max="600000" step="1000" value="220400">
+        <div class="ticks"><span>$60K</span><span>$600K</span></div>
+      </div>
+
+      <div class="field">
+        <label>Balance measured at age</label>
+        <div class="seg" id="balAgeSeg">
+          <button data-v="55" class="active">55</button>
+          <button data-v="65">65</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Gender <span class="val" id="genderVal">Male</span></label>
+        <div class="seg" id="genderSeg">
+          <button data-v="male" class="active">Male</button>
+          <button data-v="female">Female</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Plan</label>
+        <div class="seg" id="planSeg">
+          <button data-v="standard" class="active">Standard</button>
+          <button data-v="basic">Basic</button>
+          <button data-v="escalating">Escalating</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Payout start age <span class="val" id="startVal">65</span></label>
+        <input type="range" id="startAge" min="65" max="70" step="1" value="65">
+        <div class="ticks"><span>65</span><span>70</span></div>
+      </div>
+
+      <details>
+        <summary>Advanced assumptions</summary>
+        <div class="field">
+          <label>Extra top-ups, 55→65 (beyond CPF's baseline) <span class="val" id="growVal">0.0%</span></label>
+          <input type="range" id="growRate" min="0" max="6" step="0.1" value="0.0">
+          <div class="ticks"><span>0%</span><span>6%</span></div>
+        </div>
+        <div class="field">
+          <label>Life expectancy override <span class="val" id="leVal">Auto</span></label>
+          <input type="range" id="lifeExp" min="78" max="95" step="1" value="0">
+          <div class="ticks"><span>78</span><span>95</span></div>
+        </div>
+      </details>
+
+      <div class="scenario-box">
+        <p class="panel-title" style="margin-bottom:12px;">Saved scenarios</p>
+        <div class="scenario-save">
+          <input type="text" id="scenarioName" placeholder="Name this scenario…" maxlength="60">
+          <button id="saveScenarioBtn">Save</button>
+        </div>
+        <div id="scenarioStatus" class="scenario-status"></div>
+        <div id="scenarioList" class="scenario-list">
+          <p class="scenario-empty">No saved scenarios yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- OUTPUT PANEL -->
+    <div class="panel">
+      <p class="panel-title">Simulated payout</p>
+
+      <div class="headline">
+        <span class="num" id="monthlyOut">$1,640</span>
+        <span class="unit">per month, starting at age <span id="startAgeEcho">65</span></span>
+      </div>
+      <div class="subline" id="sublineNote">Standard Plan &middot; assumes life expectancy of <b>85</b></div>
+
+      <div class="ledger">
+        <div class="ledger-row"><span class="k">Annual payout</span><span class="v" id="annualOut">$19,680</span></div>
+        <div class="ledger-row"><span class="k">Lifetime total, to life expectancy</span><span class="v teal" id="lifetimeOut">$393,600</span></div>
+        <div class="ledger-row"><span class="k">Premium at payout start</span><span class="v" id="premiumOut">$220,400</span></div>
+        <div class="ledger-row"><span class="k">Bequest reaches $0 at age</span><span class="v brick" id="breakevenOut">~78</span></div>
+      </div>
+
+      <div class="chart-wrap">
+        <p class="chart-title">Cumulative payout vs. remaining bequest</p>
+        <svg id="chart" viewBox="0 0 680 260" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--teal)"></span>Cumulative payout received</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--brick)"></span>Remaining bequest</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--gold);height:0;border-top:1.5px dashed var(--gold)"></span>Life expectancy</div>
+        </div>
+      </div>
+
+      <div class="foot">
+        Figures are approximations derived from CPF Board's published 2026 payout anchors (BRS/FRS/ERS on the Standard Plan), interpolated for other balances and adjusted for gender, plan, and deferral. CPF LIFE payouts are not calculated by public formula — actual amounts depend on CPF Board's internal mortality tables, prevailing interest rates, and your specific cohort, and can only be confirmed via your myCPF account. Bequest is approximated as premium less cumulative payouts received, ignoring intervening interest.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
