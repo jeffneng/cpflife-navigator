@@ -58,7 +58,7 @@ st.markdown("## Use Case 1 — Retirement Simulator")
 st.caption("Interactive payout calculator across Standard, Basic, and Escalating plans.")
 
 FLOWCHART_1 = """
-<svg viewBox="0 0 990 260" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;font-family:'IBM Plex Sans',sans-serif;">
+<svg viewBox="0 0 990 260" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:990px;height:auto;display:block;margin:0 auto;font-family:'IBM Plex Sans',sans-serif;">
   <defs>
     <marker id="arrow1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#4F9C90"/>
@@ -106,14 +106,14 @@ FLOWCHART_1 = """
   <path class="arrow" d="M740,185 L800,185"/>
 </svg>
 """
-components.html(FLOWCHART_1, height=280)
+components.html(FLOWCHART_1, height=290)
 
 st.divider()
 st.markdown("## Use Case 2 — Policy Explainer")
 st.caption("LLM-powered Q&A grounded in the same data as the simulator.")
 
 FLOWCHART_2 = """
-<svg viewBox="0 0 820 260" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;font-family:'IBM Plex Sans',sans-serif;">
+<svg viewBox="0 0 820 260" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:820px;height:auto;display:block;margin:0 auto;font-family:'IBM Plex Sans',sans-serif;">
   <defs>
     <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#4F9C90"/>
@@ -155,7 +155,7 @@ FLOWCHART_2 = """
   <path class="arrow" d="M580,185 L620,185"/>
 </svg>
 """
-components.html(FLOWCHART_2, height=280)
+components.html(FLOWCHART_2, height=290)
 
 st.divider()
 
