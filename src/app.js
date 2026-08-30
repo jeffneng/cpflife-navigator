@@ -49,7 +49,11 @@
     return '$' + Math.round(n).toLocaleString('en-US');
   }
 
-  function compute(){
+  // Computes the starting monthly payout, premium, life expectancy and defer
+  // years for a given plan — defaults to the currently selected plan, but any
+  // plan can be passed in to compute a comparison curve for the chart.
+  function compute(plan){
+    plan = plan || state.plan;
     const bal = state.balance;
 
     // 1. base monthly payout at this balance (male, standard), at age 65 and
@@ -69,15 +73,22 @@
     monthly *= CPF.genderFactor[state.gender];
 
     // 4. plan adjustment
-    monthly *= CPF.planFactor[state.plan];
+    monthly *= CPF.planFactor[plan];
 
     // premium at payout start = RA balance grown through any deferral years
-    // at CPF's ongoing RA interest rate
+    // at CPF's ongoing RA interest rate (same for every plan)
     const premium = bal * Math.pow(1 + CPF.deferral.raInterestWhileDeferred, deferYears);
 
     const le = lifeExpectancy(state.gender, state.lifeExpOverride);
 
     return { monthly, premium, le, deferYears };
+  }
+
+  function scheduleForPlan(plan){
+    const { monthly, premium, le } = compute(plan);
+    return plan === 'basic'
+      ? buildBasicSchedule(premium, state.startAge, monthly, le)
+      : buildSchedule(monthly, state.startAge, le, plan);
   }
 
   function buildSchedule(monthlyStart, startAge, le, plan){
@@ -151,16 +162,30 @@
     return { rows, maxAge };
   }
 
-  function drawChart(rows){
+  // Line style per plan (independent of selection) so a plan's line is
+  // recognizable by dash pattern even before checking its color — selection
+  // is conveyed separately via color (teal = selected, grey = not).
+  const PLAN_META = {
+    standard:   { label: 'Standard',   dash: null,    borderStyle: 'solid' },
+    basic:      { label: 'Basic',      dash: '7,4',   borderStyle: 'dashed' },
+    escalating: { label: 'Escalating', dash: '2,3',   borderStyle: 'dotted' }
+  };
+
+  // seriesList: [{plan, rows, selected}, ...] — draws every plan's cumulative
+  // payout curve on one chart, the selected plan solid teal and on top, the
+  // other two in muted grey (still distinguishable by dash pattern), plus a
+  // vertical marker for life expectancy.
+  function drawChart(seriesList, le){
     const svg = document.getElementById('chart');
     const W = 680, H = 260;
     const padL = 54, padR = 16, padT = 16, padB = 34;
     const plotW = W - padL - padR;
     const plotH = H - padT - padB;
 
-    const maxAge = rows[rows.length-1].age;
-    const minAge = rows[0].age;
-    const maxVal = rows[rows.length-1].cum * 1.05;
+    const allRows = seriesList.flatMap(s => s.rows);
+    const maxAge = Math.max(...allRows.map(r => r.age));
+    const minAge = Math.min(...allRows.map(r => r.age));
+    const maxVal = Math.max(...allRows.map(r => r.cum)) * 1.05;
 
     function x(age){ return padL + (age - minAge) / (maxAge - minAge) * plotW; }
     function y(val){ return padT + plotH - (val / maxVal) * plotH; }
@@ -182,15 +207,44 @@
       svgParts.push(`<text x="${xx}" y="${H-10}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#8FA0AE">${age}</text>`);
     }
 
-    // cumulative payout line (teal) — the chart already runs exactly to life
-    // expectancy (see render()), so no separate marker line is needed for it.
-    let cumPath = rows.map((r,i) => (i===0?'M':'L') + x(r.age).toFixed(1) + ',' + y(r.cum).toFixed(1)).join(' ');
-    svgParts.push(`<path d="${cumPath}" fill="none" stroke="#4F9C90" stroke-width="2.2" />`);
+    // life expectancy vertical dashed line
+    if (le >= minAge && le <= maxAge){
+      const leX = x(le);
+      svgParts.push(`<line x1="${leX}" y1="${padT}" x2="${leX}" y2="${H-padB}" stroke="#C7A24A" stroke-width="1.3" stroke-dasharray="4,4" />`);
+      svgParts.push(`<text x="${leX}" y="${padT+10}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#C7A24A">age ${le}</text>`);
+    }
+
+    // plan curves — draw the non-selected (grey) ones first, selected last so
+    // its solid teal line sits on top of the comparison lines.
+    const ordered = [...seriesList].sort((a,b) => (a.selected?1:0) - (b.selected?1:0));
+    ordered.forEach(s => {
+      const meta = PLAN_META[s.plan];
+      const color = s.selected ? '#4F9C90' : '#8FA0AE';
+      const width = s.selected ? 2.4 : 1.5;
+      const dashAttr = meta.dash ? ` stroke-dasharray="${meta.dash}"` : '';
+      const path = s.rows.map((r,i) => (i===0?'M':'L') + x(r.age).toFixed(1) + ',' + y(r.cum).toFixed(1)).join(' ');
+      svgParts.push(`<path d="${path}" fill="none" stroke="${color}" stroke-width="${width}"${dashAttr} />`);
+    });
 
     // axis baseline
     svgParts.push(`<line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#2A3F52" stroke-width="1" />`);
 
     svg.innerHTML = svgParts.join('');
+  }
+
+  function renderChartLegend(seriesList){
+    const el = document.getElementById('chartLegend');
+    const planItems = seriesList.map(s => {
+      const meta = PLAN_META[s.plan];
+      const color = s.selected ? 'var(--teal)' : 'var(--muted)';
+      const swatchStyle = 'height:0;border-top:2px ' + meta.borderStyle + ' ' + color + ';';
+      return '<div class="legend-item' + (s.selected ? ' selected' : '') + '">' +
+        '<span class="legend-swatch" style="' + swatchStyle + '"></span>' +
+        meta.label + (s.selected ? ' (selected)' : '') +
+        '</div>';
+    }).join('');
+    const leItem = '<div class="legend-item"><span class="legend-swatch" style="background:var(--gold);height:0;border-top:1.5px dashed var(--gold)"></span>Life expectancy</div>';
+    el.innerHTML = planItems + leItem;
   }
 
   function renderPayoutByAge(rows, startAge){
@@ -237,12 +291,17 @@
     renderLifeExpectancyDisplays(le);
 
     renderPayoutByAge(sched.rows, state.startAge);
-    // The chart runs only to life expectancy, not the full simulated range
-    // (which extends further to make sure the payout-by-age snapshot and
-    // lifetime-total figures always have data at ages 65/70/75/85/le).
-    document.getElementById('chartTitle').textContent = 'Cumulative payout received, to age ' + le;
-    const chartRows = sched.rows.filter(r => r.age <= le);
-    drawChart(chartRows.length ? chartRows : sched.rows);
+
+    // Compare all three plans on one chart: the selected plan's schedule is
+    // already computed above (sched); the other two are computed fresh here
+    // for the same balance/gender/start age, purely for the comparison lines.
+    const seriesList = ['standard', 'basic', 'escalating'].map(plan => ({
+      plan,
+      rows: plan === state.plan ? sched.rows : scheduleForPlan(plan).rows,
+      selected: plan === state.plan
+    }));
+    renderChartLegend(seriesList);
+    drawChart(seriesList, le);
   }
 
   // ---- apply a full state object to the controls, then re-render ----

@@ -91,8 +91,8 @@
 
       <div class="ledger">
         <div class="ledger-row"><span class="k">Annual payout</span><span class="v" id="annualOut">$19,680</span></div>
-        <div class="ledger-row"><span class="k">Lifetime total, to life expectancy</span><span class="v teal" id="lifetimeOut">$393,600</span></div>
         <div class="ledger-row"><span class="k">Premium at payout start</span><span class="v" id="premiumOut">$220,400</span></div>
+        <div class="ledger-row"><span class="k">Lifetime total, to life expectancy</span><span class="v teal" id="lifetimeOut">$393,600</span></div>
       </div>
 
       <div class="subledger">
@@ -106,11 +106,9 @@
       </div>
 
       <div class="chart-wrap">
-        <p class="chart-title" id="chartTitle">Cumulative payout received, to age 85</p>
+        <p class="chart-title">Cumulative payout by plan</p>
         <svg id="chart" viewBox="0 0 680 260" preserveAspectRatio="xMidYMid meet"></svg>
-        <div class="legend">
-          <div class="legend-item"><span class="legend-swatch" style="background:var(--teal)"></span>Cumulative payout received</div>
-        </div>
+        <div class="legend" id="chartLegend"></div>
       </div>
 
       <div class="foot">

@@ -392,6 +392,10 @@ svg{width:100%;height:auto;display:block;}
   display:flex;align-items:center;gap:6px;
   font-size:11.5px;color:var(--muted);
 }
+.legend-item.selected{
+  color:var(--parchment);
+  font-weight:600;
+}
 .legend-swatch{width:14px;height:3px;border-radius:2px;}
 
 .foot{
