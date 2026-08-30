@@ -2,11 +2,9 @@
   // ---- state ----
   const state = {
     balance: 220400,
-    balAge: 55,
     gender: 'male',
     plan: 'standard',
     startAge: 65,
-    growRate: 0.0,
     lifeExpOverride: 0
   };
 
@@ -52,21 +50,14 @@
   }
 
   function compute(){
-    // 1. CPF's published anchors already project a 55-year-old's balance forward
-    //    to 65 using its own baseline assumptions — so no compounding is applied
-    //    by default. The "extra top-ups" slider only adds growth on top of that
-    //    baseline, for modeling voluntary contributions beyond what CPF assumed.
-    let bal65 = state.balance;
-    if (state.balAge === 55 && state.growRate > 0){
-      bal65 = state.balance * Math.pow(1 + state.growRate/100, 10);
-    }
+    const bal = state.balance;
 
-    // 2. base monthly payout at this balance (male, standard), at age 65 and
+    // 1. base monthly payout at this balance (male, standard), at age 65 and
     //    age 70 — both interpolated directly from CPF's published anchors.
-    const payout65 = interpolatedPayout(bal65, 'monthlyPayout');
-    const payout70 = interpolatedPayout(bal65, 'monthlyPayoutAt70');
+    const payout65 = interpolatedPayout(bal, 'monthlyPayout');
+    const payout70 = interpolatedPayout(bal, 'monthlyPayoutAt70');
 
-    // 3. deferral adjustment: rather than one flat bonus rate for every balance,
+    // 2. deferral adjustment: rather than one flat bonus rate for every balance,
     //    derive the compound annual rate implied by *this balance's own*
     //    age-65 -> age-70 anchor ratio, so payouts at 65 and 70 land exactly on
     //    CPF's published figures and years in between are interpolated sensibly.
@@ -74,44 +65,38 @@
     const impliedAnnualRate = Math.pow(payout70 / payout65, 1/5) - 1;
     let monthly = payout65 * Math.pow(1 + impliedAnnualRate, deferYears);
 
-    // 4. gender adjustment
+    // 3. gender adjustment
     monthly *= CPF.genderFactor[state.gender];
 
-    // 5. plan adjustment
+    // 4. plan adjustment
     monthly *= CPF.planFactor[state.plan];
 
-    // premium at payout start = balance at 65 grown through any deferral years
-    // at CPF's ongoing RA interest rate (not the 55→65 top-up slider)
-    const premium = bal65 * Math.pow(1 + CPF.deferral.raInterestWhileDeferred, deferYears);
+    // premium at payout start = RA balance grown through any deferral years
+    // at CPF's ongoing RA interest rate
+    const premium = bal * Math.pow(1 + CPF.deferral.raInterestWhileDeferred, deferYears);
 
     const le = lifeExpectancy(state.gender, state.lifeExpOverride);
 
     return { monthly, premium, le, deferYears };
   }
 
-  function buildSchedule(monthlyStart, premium, startAge, le, plan){
-    // returns array of {age, cumPayout, bequest, monthlyThatYear}
+  function buildSchedule(monthlyStart, startAge, le, plan){
+    // returns array of {age, cum, monthly}
     const maxAge = Math.max(le + 8, startAge + 5, 95);
     const rows = [];
     let cum = 0;
     let curMonthly = monthlyStart;
-    let breakevenAge = null;
     for (let age = startAge; age <= maxAge; age++){
       if (age > startAge && plan === 'escalating'){
         curMonthly = curMonthly * (1 + CPF.escalatingPlan.annualEscalationRate);
       }
       cum += curMonthly * 12;
-      const bequest = Math.max(0, premium - cum);
-      if (bequest === 0 && breakevenAge === null){
-        breakevenAge = age;
-      }
-      rows.push({age, cum, bequest, monthly: curMonthly});
+      rows.push({age, cum, monthly: curMonthly});
     }
-    if (breakevenAge === null) breakevenAge = maxAge;
-    return { rows, breakevenAge, maxAge };
+    return { rows, maxAge };
   }
 
-  function drawChart(rows, startAge, le, breakevenAge, premium){
+  function drawChart(rows, le){
     const svg = document.getElementById('chart');
     const W = 680, H = 260;
     const padL = 54, padR = 16, padT = 16, padB = 34;
@@ -120,7 +105,7 @@
 
     const maxAge = rows[rows.length-1].age;
     const minAge = rows[0].age;
-    const maxVal = Math.max(premium, rows[rows.length-1].cum) * 1.05;
+    const maxVal = rows[rows.length-1].cum * 1.05;
 
     function x(age){ return padL + (age - minAge) / (maxAge - minAge) * plotW; }
     function y(val){ return padT + plotH - (val / maxVal) * plotH; }
@@ -151,23 +136,27 @@
     let cumPath = rows.map((r,i) => (i===0?'M':'L') + x(r.age).toFixed(1) + ',' + y(r.cum).toFixed(1)).join(' ');
     svgParts.push(`<path d="${cumPath}" fill="none" stroke="#4F9C90" stroke-width="2.2" />`);
 
-    // bequest line (brick)
-    let beqPath = rows.map((r,i) => (i===0?'M':'L') + x(r.age).toFixed(1) + ',' + y(r.bequest).toFixed(1)).join(' ');
-    svgParts.push(`<path d="${beqPath}" fill="none" stroke="#B4553F" stroke-width="2.2" />`);
-
-    // breakeven marker dot
-    const bx = x(breakevenAge), by = y(0);
-    svgParts.push(`<circle cx="${bx}" cy="${by}" r="4" fill="#B4553F" />`);
-
     // axis baseline
     svgParts.push(`<line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#2A3F52" stroke-width="1" />`);
 
     svg.innerHTML = svgParts.join('');
   }
 
+  function renderPayoutByAge(rows, startAge){
+    document.querySelectorAll('#payoutByAge .v').forEach(el => {
+      const age = parseInt(el.dataset.age, 10);
+      if (age < startAge){
+        el.textContent = 'starts at ' + startAge;
+      } else {
+        const row = rows.find(r => r.age === age);
+        el.textContent = row ? fmtMoney(row.monthly) + '/mo' : '—';
+      }
+    });
+  }
+
   function render(){
     const { monthly, premium, le, deferYears } = compute();
-    const sched = buildSchedule(monthly, premium, state.startAge, le, state.plan);
+    const sched = buildSchedule(monthly, state.startAge, le, state.plan);
 
     document.getElementById('monthlyOut').textContent = fmtMoney(monthly);
     document.getElementById('startAgeEcho').textContent = state.startAge;
@@ -177,12 +166,12 @@
     const leRow = sched.rows.find(r => r.age === le) || lastRow;
     document.getElementById('lifetimeOut').textContent = fmtMoney(leRow.cum);
     document.getElementById('premiumOut').textContent = fmtMoney(premium);
-    document.getElementById('breakevenOut').textContent = (sched.breakevenAge >= sched.maxAge && sched.rows[sched.rows.length-1].bequest > 0) ? 'beyond ' + sched.maxAge : ('~' + sched.breakevenAge);
 
     const planLabel = { standard: 'Standard Plan', basic: 'Basic Plan', escalating: 'Escalating Plan' }[state.plan];
     document.getElementById('sublineNote').innerHTML = planLabel + ' &middot; assumes life expectancy of <b>' + le + '</b>' + (deferYears>0 ? ' &middot; deferred ' + deferYears + ' yr' + (deferYears>1?'s':'') : '');
 
-    drawChart(sched.rows, state.startAge, le, sched.breakevenAge, premium);
+    renderPayoutByAge(sched.rows, state.startAge);
+    drawChart(sched.rows, le);
   }
 
   // ---- apply a full state object to the controls, then re-render ----
@@ -190,13 +179,9 @@
     Object.assign(state, newState);
 
     document.getElementById('balance').value = state.balance;
-    document.getElementById('balVal').textContent = fmtMoney(state.balance);
 
     document.getElementById('startAge').value = state.startAge;
     document.getElementById('startVal').textContent = state.startAge;
-
-    document.getElementById('growRate').value = state.growRate;
-    document.getElementById('growVal').textContent = state.growRate.toFixed(1) + '%';
 
     const lifeExp = document.getElementById('lifeExp');
     lifeExp.value = state.lifeExpOverride > 0 ? state.lifeExpOverride : 0;
@@ -204,7 +189,6 @@
 
     document.getElementById('genderVal').textContent = state.gender === 'male' ? 'Male' : 'Female';
 
-    setActiveSeg('balAgeSeg', String(state.balAge));
     setActiveSeg('genderSeg', state.gender);
     setActiveSeg('planSeg', state.plan);
 
@@ -222,8 +206,8 @@
   function wireControls(){
     const balance = document.getElementById('balance');
     balance.addEventListener('input', () => {
-      state.balance = parseInt(balance.value,10);
-      document.getElementById('balVal').textContent = fmtMoney(state.balance);
+      const v = parseFloat(balance.value);
+      state.balance = isNaN(v) ? 0 : v;
       render();
     });
 
@@ -240,7 +224,6 @@
       });
     }
 
-    wireSeg('balAgeSeg', 'balAge');
     wireSeg('genderSeg', 'gender', () => {
       document.getElementById('genderVal').textContent = state.gender === 'male' ? 'Male' : 'Female';
     });
@@ -250,13 +233,6 @@
     startAge.addEventListener('input', () => {
       state.startAge = parseInt(startAge.value,10);
       document.getElementById('startVal').textContent = state.startAge;
-      render();
-    });
-
-    const growRate = document.getElementById('growRate');
-    growRate.addEventListener('input', () => {
-      state.growRate = parseFloat(growRate.value);
-      document.getElementById('growVal').textContent = state.growRate.toFixed(1) + '%';
       render();
     });
 

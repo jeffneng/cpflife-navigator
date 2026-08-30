@@ -116,6 +116,42 @@ body{
   font-size:14px;
   font-weight:500;
 }
+
+.amount-input{
+  display:flex;
+  align-items:center;
+  background:var(--panel-raised);
+  border:1px solid var(--rule);
+  border-radius:3px;
+  padding:0 12px;
+  transition:border-color 0.15s;
+}
+.amount-input:focus-within{border-color:var(--gold);}
+.amount-input .prefix{
+  font-family:'IBM Plex Mono',monospace;
+  color:var(--muted);
+  font-size:16px;
+  margin-right:2px;
+}
+.amount-input input[type=number]{
+  flex:1;
+  min-width:0;
+  background:transparent;
+  border:none;
+  outline:none;
+  color:var(--parchment);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:16px;
+  font-weight:500;
+  padding:10px 0;
+}
+.amount-input input[type=number]::-webkit-outer-spin-button,
+.amount-input input[type=number]::-webkit-inner-spin-button{
+  -webkit-appearance:none;
+  margin:0;
+}
+.amount-input input[type=number]{-moz-appearance:textfield;}
+
 input[type=range]{
   width:100%;
   -webkit-appearance:none;
@@ -302,6 +338,9 @@ details .field{margin-top:18px;}
   margin-bottom:20px;
 }
 .subline b{color:var(--teal); font-weight:600;}
+
+.subledger{margin-top:26px;}
+.subledger .chart-title{margin-bottom:10px;}
 
 .ledger{
   border-top:1px solid var(--rule);
