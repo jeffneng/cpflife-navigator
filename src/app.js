@@ -20,18 +20,26 @@
     CPF = await res.json();
   }
 
-  function monthlyRateForBalance(bal){
-    // piecewise linear interpolation of payout/balance ratio between anchors
-    const pts = CPF.payoutAnchors.map(a => ({bal:a.balance, rate:a.monthlyPayout/a.balance}));
-    if (bal <= pts[0].bal) return pts[0].rate;
-    if (bal >= pts[pts.length-1].bal) return pts[pts.length-1].rate;
-    for (let i=0;i<pts.length-1;i++){
-      if (bal >= pts[i].bal && bal <= pts[i+1].bal){
-        const t = (bal - pts[i].bal) / (pts[i+1].bal - pts[i].bal);
-        return pts[i].rate + t*(pts[i+1].rate - pts[i].rate);
+  // Piecewise-linear interpolation of payout/balance ratio between anchors,
+  // parametrized by which payout field to read (age-65 or age-70 figures) —
+  // interpolating the ratio rather than the raw payout keeps the curve shaped
+  // like CPF's (payouts aren't linear in balance).
+  function interpolatedPayout(bal, field){
+    const pts = CPF.payoutAnchors.map(a => ({bal:a.balance, rate:a[field]/a.balance}));
+    let rate;
+    if (bal <= pts[0].bal) rate = pts[0].rate;
+    else if (bal >= pts[pts.length-1].bal) rate = pts[pts.length-1].rate;
+    else {
+      rate = pts[pts.length-1].rate;
+      for (let i=0;i<pts.length-1;i++){
+        if (bal >= pts[i].bal && bal <= pts[i+1].bal){
+          const t = (bal - pts[i].bal) / (pts[i+1].bal - pts[i].bal);
+          rate = pts[i].rate + t*(pts[i+1].rate - pts[i].rate);
+          break;
+        }
       }
     }
-    return pts[pts.length-1].rate;
+    return bal * rate;
   }
 
   function lifeExpectancy(gender, override){
@@ -53,21 +61,24 @@
       bal65 = state.balance * Math.pow(1 + state.growRate/100, 10);
     }
 
-    // 2. base monthly rate at this balance (male, standard, age 65)
-    let rate = monthlyRateForBalance(bal65);
-    let monthly = bal65 * rate;
+    // 2. base monthly payout at this balance (male, standard), at age 65 and
+    //    age 70 — both interpolated directly from CPF's published anchors.
+    const payout65 = interpolatedPayout(bal65, 'monthlyPayout');
+    const payout70 = interpolatedPayout(bal65, 'monthlyPayoutAt70');
 
-    // 3. gender adjustment
+    // 3. deferral adjustment: rather than one flat bonus rate for every balance,
+    //    derive the compound annual rate implied by *this balance's own*
+    //    age-65 -> age-70 anchor ratio, so payouts at 65 and 70 land exactly on
+    //    CPF's published figures and years in between are interpolated sensibly.
+    const deferYears = state.startAge - 65;
+    const impliedAnnualRate = Math.pow(payout70 / payout65, 1/5) - 1;
+    let monthly = payout65 * Math.pow(1 + impliedAnnualRate, deferYears);
+
+    // 4. gender adjustment
     monthly *= CPF.genderFactor[state.gender];
 
-    // 4. plan adjustment
+    // 5. plan adjustment
     monthly *= CPF.planFactor[state.plan];
-
-    // 5. deferral adjustment (balance also keeps earning between 65 and start age,
-    //    but CPF's published deferral bonus already folds that in, so apply once)
-    const deferYears = state.startAge - 65;
-    const deferMultiplier = Math.pow(1 + CPF.deferral.annualBonusRate, deferYears);
-    monthly *= deferMultiplier;
 
     // premium at payout start = balance at 65 grown through any deferral years
     // at CPF's ongoing RA interest rate (not the 55→65 top-up slider)

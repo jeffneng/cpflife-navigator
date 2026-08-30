@@ -1,19 +1,24 @@
 {
   "cohortYear": 2026,
-  "source": "CPF Board published payout estimates (BRS/FRS/ERS, Standard Plan, male, payout start age 65). Update this file each year when CPF Board revises its payout tables — nothing in /src or /server should need to change.",
+  "source": "CPF Board, \"How much CPF payouts can I get every month\" (https://www.cpf.gov.sg/service/article/how-much-cpf-payouts-can-i-get-every-month) — members turning 55 in 2026, Standard Plan, male, payout start age 65 (and age 70 for the deferral figures). Update this file each year when CPF Board revises its payout tables — nothing in /src or /server should need to change.",
   "lastUpdated": "2026-08-30",
 
   "notes": [
     "CPF LIFE payouts are not produced by a public formula. `payoutAnchors` are calibration points (male, Standard Plan, start age 65) that the app interpolates between for other balances, then adjusts for gender, plan, and deferral using the multipliers below.",
     "Balances between anchors are interpolated on the payout-per-dollar ratio, not on the payout amount directly.",
-    "Figures are estimates only and will drift from CPF Board's actual tables over time — recalibrate `payoutAnchors` yearly against the latest BRS/FRS/ERS illustrations.",
-    "2026-08-30: FRS anchor and genderFactor.female recalibrated against user-supplied CPF-published figures for $220,400 RA, Standard Plan, start age 65 (Male $1,759/mo, Female $1,640/mo). The BRS and ERS anchors below are still the pre-recalibration estimates and have NOT been verified against current CPF-published figures — update them too if/when those numbers are confirmed."
+    "Figures are estimates only and will drift from CPF Board's actual tables over time — recalibrate `payoutAnchors` yearly against the latest published illustrations.",
+    "2026-08-30: Rebuilt payoutAnchors from CPF Board's published reference table (6 points spanning $50,000-$440,800, each with both age-65 and age-70 payouts — see `source`). This supersedes the earlier 3-point table and the unsourced $1,759 FRS/male figure used in the previous recalibration; the FRS anchor is now $1,780/mo, matching CPF's cited figure.",
+    "2026-08-30: the app no longer uses a single flat deferral bonus rate. Since payoutAnchors now carries both monthlyPayout (age 65) and monthlyPayoutAt70 for every balance point, the app interpolates each curve independently and derives the compound annual deferral rate implied by that specific balance's own age-65 -> age-70 ratio (range 5.89%-6.46% across these anchors, average 6.06% — see deferral.impliedAverageAnnualRate below, kept for reference only). This makes payouts at start ages 65 and 70 land exactly on CPF's published figures at every anchor balance, not just approximately.",
+    "genderFactor.female (0.9323) has NOT been re-verified against this table, which is male-only — it is carried over from the prior calibration (an earlier male/female pair at $220,400: $1,759 vs $1,640) and should be replaced if a female-specific CPF reference table becomes available."
   ],
 
   "payoutAnchors": [
-    { "balance": 110200, "monthlyPayout": 960,  "label": "BRS" },
-    { "balance": 220400, "monthlyPayout": 1759, "label": "FRS" },
-    { "balance": 440800, "monthlyPayout": 3180, "label": "ERS" }
+    { "balance": 50000,  "monthlyPayout": 490,  "monthlyPayoutAt70": 670,  "label": "Below BRS" },
+    { "balance": 110200, "monthlyPayout": 950,  "monthlyPayoutAt70": 1280, "label": "BRS" },
+    { "balance": 150000, "monthlyPayout": 1250, "monthlyPayoutAt70": 1670, "label": null },
+    { "balance": 220400, "monthlyPayout": 1780, "monthlyPayoutAt70": 2380, "label": "FRS" },
+    { "balance": 300000, "monthlyPayout": 2380, "monthlyPayoutAt70": 3170, "label": null },
+    { "balance": 440800, "monthlyPayout": 3440, "monthlyPayoutAt70": 4580, "label": "ERS" }
   ],
 
   "genderFactor": {
@@ -33,9 +38,9 @@
   },
 
   "deferral": {
-    "annualBonusRate": 0.0731,
+    "impliedAverageAnnualRate": 0.0606,
     "raInterestWhileDeferred": 0.04,
-    "description": "annualBonusRate approximates CPF's published ~42% cumulative payout increase for deferring from 65 to 70 (compounded). raInterestWhileDeferred is the ordinary RA interest rate applied to the deferred premium balance."
+    "description": "impliedAverageAnnualRate is documentation only (average of the per-balance rates implied by payoutAnchors' monthlyPayout vs monthlyPayoutAt70) — the app computes each balance's own implied rate directly from those two fields rather than reading this value. raInterestWhileDeferred is the ordinary RA interest rate applied to the deferred premium balance and IS read directly by the app."
   },
 
   "lifeExpectancy": {
@@ -44,7 +49,7 @@
   },
 
   "sliderRanges": {
-    "balance": { "min": 60000, "max": 600000, "step": 1000, "default": 220400 },
+    "balance": { "min": 50000, "max": 600000, "step": 1000, "default": 220400 },
     "startAge": { "min": 65, "max": 70, "step": 1, "default": 65 },
     "extraTopUpRate": { "min": 0, "max": 6, "step": 0.1, "default": 0 },
     "lifeExpectancyOverride": { "min": 78, "max": 95, "step": 1 }
