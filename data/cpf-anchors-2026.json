@@ -9,7 +9,7 @@
     "Figures are estimates only and will drift from CPF Board's actual tables over time — recalibrate `payoutAnchors` yearly against the latest published illustrations.",
     "2026-08-30: Rebuilt payoutAnchors from CPF Board's published reference table (6 points spanning $50,000-$440,800, each with both age-65 and age-70 payouts — see `source`). This supersedes the earlier 3-point table and the unsourced $1,759 FRS/male figure used in the previous recalibration; the FRS anchor is now $1,780/mo, matching CPF's cited figure.",
     "2026-08-30: the app no longer uses a single flat deferral bonus rate. Since payoutAnchors now carries both monthlyPayout (age 65) and monthlyPayoutAt70 for every balance point, the app interpolates each curve independently and derives the compound annual deferral rate implied by that specific balance's own age-65 -> age-70 ratio (range 5.89%-6.46% across these anchors, average 6.06% — see deferral.impliedAverageAnnualRate below, kept for reference only). This makes payouts at start ages 65 and 70 land exactly on CPF's published figures at every anchor balance, not just approximately.",
-    "genderFactor.female (0.9323) has NOT been re-verified against this table, which is male-only — it is carried over from the prior calibration (an earlier male/female pair at $220,400: $1,759 vs $1,640) and should be replaced if a female-specific CPF reference table becomes available."
+    "2026-08-30: CPF Board does not publish a female payout table — payoutAnchors above (and the deferral rates derived from them) are male figures only. genderFactor.female is set to 0.93 (a flat 7% reduction), the midpoint of CPF's own general guidance that female payouts run 'roughly 6% to 8% lower' than male for the same RA balance, due to longer payout duration. CPF's own worked example: ERS $440,800 pays male $3,440/mo vs female approx. $3,180-$3,250/mo — 0.93 lands at $3,199, inside that range. Replace with a real female-specific table if CPF Board ever publishes one; until then this is a rough uniform approximation, not calibrated per balance the way the male anchors are."
   ],
 
   "payoutAnchors": [
@@ -23,7 +23,7 @@
 
   "genderFactor": {
     "male": 1.0,
-    "female": 0.9323
+    "female": 0.93
   },
 
   "planFactor": {
