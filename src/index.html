@@ -39,6 +39,7 @@
           <button data-v="male" class="active">Male</button>
           <button data-v="female">Female</button>
         </div>
+        <p class="hint" id="leHint">Default life expectancy — <b class="active">Male 85</b> &middot; <b>Female 88</b></p>
       </div>
 
       <div class="field">
@@ -59,7 +60,7 @@
       <details>
         <summary>Advanced assumptions</summary>
         <div class="field">
-          <label>Life expectancy override <span class="val" id="leVal">Auto</span></label>
+          <label>Life expectancy override <span class="val" id="leVal">Auto (85)</span></label>
           <input type="range" id="lifeExp" min="78" max="95" step="1" value="0">
           <div class="ticks"><span>78</span><span>95</span></div>
         </div>
@@ -105,11 +106,10 @@
       </div>
 
       <div class="chart-wrap">
-        <p class="chart-title">Cumulative payout received over time</p>
+        <p class="chart-title" id="chartTitle">Cumulative payout received, to age 85</p>
         <svg id="chart" viewBox="0 0 680 260" preserveAspectRatio="xMidYMid meet"></svg>
         <div class="legend">
           <div class="legend-item"><span class="legend-swatch" style="background:var(--teal)"></span>Cumulative payout received</div>
-          <div class="legend-item"><span class="legend-swatch" style="background:var(--gold);height:0;border-top:1.5px dashed var(--gold)"></span>Life expectancy</div>
         </div>
       </div>
 

@@ -96,7 +96,62 @@
     return { rows, maxAge };
   }
 
-  function drawChart(rows, le){
+  // Level monthly payment that fully amortizes `principal` over `years` at
+  // `annualRate`, compounded monthly.
+  function amortizeMonthly(principal, annualRate, years){
+    if (principal <= 0) return 0;
+    const n = Math.max(1, Math.round(years * 12));
+    const i = annualRate / 12;
+    if (i === 0) return principal / n;
+    return principal * i / (1 - Math.pow(1 + i, -n));
+  }
+
+  // Approximate the Basic Plan's declining payout shape (see
+  // basicPlan.description in data/cpf-anchors-2026.json for the model and its
+  // sources): flat while the self-funded RA portion stays above the
+  // extra-interest threshold, a linear ramp down once it dips below that
+  // threshold, then a lower flat payout from age 90 funded by the premium pool.
+  function buildBasicSchedule(balanceAtStart, startAge, initialMonthly, le){
+    const B = CPF.basicPlan;
+    const ordRate = CPF.deferral.raInterestWhileDeferred;
+
+    const selfPool0 = balanceAtStart * (1 - B.premiumFraction);
+    const premiumPool0 = balanceAtStart * B.premiumFraction;
+
+    // Find the age the self-funded balance first dips below the threshold,
+    // simulating it year by year under the flat initial payout.
+    let selfPool = selfPool0;
+    let crossingAge = B.selfFundedEndAge;
+    for (let age = startAge; age < B.selfFundedEndAge; age++){
+      if (selfPool < B.selfFundedThreshold){ crossingAge = age; break; }
+      const rate = ordRate + B.extraInterestRate;
+      selfPool = selfPool * (1 + rate) - initialMonthly * 12;
+    }
+
+    const premiumPoolAt90 = premiumPool0 * Math.pow(1 + ordRate, B.selfFundedEndAge - startAge);
+    const postAmortYears = Math.max(B.postSelfFundedAmortizationYears, le - B.selfFundedEndAge);
+    const phase3Monthly = amortizeMonthly(premiumPoolAt90, ordRate, postAmortYears);
+
+    const maxAge = Math.max(le + 8, startAge + 5, 95);
+    const rows = [];
+    let cum = 0;
+    for (let age = startAge; age <= maxAge; age++){
+      let monthly;
+      if (age < crossingAge){
+        monthly = initialMonthly;
+      } else if (age < B.selfFundedEndAge && crossingAge < B.selfFundedEndAge){
+        const t = (age - crossingAge) / (B.selfFundedEndAge - crossingAge);
+        monthly = initialMonthly + (phase3Monthly - initialMonthly) * t;
+      } else {
+        monthly = phase3Monthly;
+      }
+      cum += monthly * 12;
+      rows.push({age, cum, monthly});
+    }
+    return { rows, maxAge };
+  }
+
+  function drawChart(rows){
     const svg = document.getElementById('chart');
     const W = 680, H = 260;
     const padL = 54, padR = 16, padT = 16, padB = 34;
@@ -127,12 +182,8 @@
       svgParts.push(`<text x="${xx}" y="${H-10}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#8FA0AE">${age}</text>`);
     }
 
-    // life expectancy vertical dashed line
-    const leX = x(le);
-    svgParts.push(`<line x1="${leX}" y1="${padT}" x2="${leX}" y2="${H-padB}" stroke="#C7A24A" stroke-width="1.3" stroke-dasharray="4,4" />`);
-    svgParts.push(`<text x="${leX}" y="${padT+10}" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9.5" fill="#C7A24A">age ${le}</text>`);
-
-    // cumulative payout line (teal)
+    // cumulative payout line (teal) — the chart already runs exactly to life
+    // expectancy (see render()), so no separate marker line is needed for it.
     let cumPath = rows.map((r,i) => (i===0?'M':'L') + x(r.age).toFixed(1) + ',' + y(r.cum).toFixed(1)).join(' ');
     svgParts.push(`<path d="${cumPath}" fill="none" stroke="#4F9C90" stroke-width="2.2" />`);
 
@@ -154,9 +205,23 @@
     });
   }
 
+  function renderLifeExpectancyDisplays(le){
+    const m = CPF.lifeExpectancy.male, f = CPF.lifeExpectancy.female;
+    document.getElementById('leHint').innerHTML =
+      'Default life expectancy — ' +
+      '<b class="' + (state.gender === 'male' ? 'active' : '') + '">Male ' + m + '</b>' +
+      ' &middot; ' +
+      '<b class="' + (state.gender === 'female' ? 'active' : '') + '">Female ' + f + '</b>';
+
+    document.getElementById('leVal').textContent =
+      state.lifeExpOverride > 0 ? state.lifeExpOverride : ('Auto (' + le + ')');
+  }
+
   function render(){
     const { monthly, premium, le, deferYears } = compute();
-    const sched = buildSchedule(monthly, state.startAge, le, state.plan);
+    const sched = state.plan === 'basic'
+      ? buildBasicSchedule(premium, state.startAge, monthly, le)
+      : buildSchedule(monthly, state.startAge, le, state.plan);
 
     document.getElementById('monthlyOut').textContent = fmtMoney(monthly);
     document.getElementById('startAgeEcho').textContent = state.startAge;
@@ -169,9 +234,15 @@
 
     const planLabel = { standard: 'Standard Plan', basic: 'Basic Plan', escalating: 'Escalating Plan' }[state.plan];
     document.getElementById('sublineNote').innerHTML = planLabel + ' &middot; assumes life expectancy of <b>' + le + '</b>' + (deferYears>0 ? ' &middot; deferred ' + deferYears + ' yr' + (deferYears>1?'s':'') : '');
+    renderLifeExpectancyDisplays(le);
 
     renderPayoutByAge(sched.rows, state.startAge);
-    drawChart(sched.rows, le);
+    // The chart runs only to life expectancy, not the full simulated range
+    // (which extends further to make sure the payout-by-age snapshot and
+    // lifetime-total figures always have data at ages 65/70/75/85/le).
+    document.getElementById('chartTitle').textContent = 'Cumulative payout received, to age ' + le;
+    const chartRows = sched.rows.filter(r => r.age <= le);
+    drawChart(chartRows.length ? chartRows : sched.rows);
   }
 
   // ---- apply a full state object to the controls, then re-render ----
@@ -183,9 +254,7 @@
     document.getElementById('startAge').value = state.startAge;
     document.getElementById('startVal').textContent = state.startAge;
 
-    const lifeExp = document.getElementById('lifeExp');
-    lifeExp.value = state.lifeExpOverride > 0 ? state.lifeExpOverride : 0;
-    document.getElementById('leVal').textContent = state.lifeExpOverride > 0 ? state.lifeExpOverride : 'Auto';
+    document.getElementById('lifeExp').value = state.lifeExpOverride > 0 ? state.lifeExpOverride : 0;
 
     document.getElementById('genderVal').textContent = state.gender === 'male' ? 'Male' : 'Female';
 
@@ -239,9 +308,7 @@
     const lifeExp = document.getElementById('lifeExp');
     lifeExp.addEventListener('input', () => {
       const v = parseInt(lifeExp.value,10);
-      state.lifeExpOverride = v;
-      document.getElementById('leVal').textContent = v <= 78 ? 'Auto' : v;
-      if (v <= 78) state.lifeExpOverride = 0;
+      state.lifeExpOverride = v <= 78 ? 0 : v;
       render();
     });
   }
