@@ -184,3 +184,72 @@ def schedule_for_plan(
 
 def fmt_money(n: float) -> str:
     return "${:,.0f}".format(round(n))
+
+
+def escape_dollars(text: str) -> str:
+    """Escape literal $ before passing text to st.markdown/st.caption/etc. —
+    Streamlit's markdown renderer treats a matched pair of $ anywhere in the
+    same call as inline LaTeX math, which mangles everything between two
+    dollar amounts (e.g. "$220,400 ... $1,780"). Only needed for text that
+    will be markdown-rendered; never apply this to text sent to the LLM."""
+    return text.replace("$", "\\$")
+
+
+# ---- retirement sum projection (used by the Streamlit capstone app only) ----
+# See retirementSumProjection.description in data/cpf-anchors-2026.json.
+
+def cohort_growth_factor(cohort_year: int, cpf: dict) -> float:
+    p = cpf["retirementSumProjection"]
+    return (1 + p["annualGrowthRate"]) ** (cohort_year - p["baseCohortYear"])
+
+
+def projected_retirement_sum(tier: str, cohort_year: int, cpf: dict) -> float:
+    """Projected BRS/FRS/ERS for a member turning 55 in `cohort_year`,
+    compounding from the published 2026 figure and rounded to the nearest
+    $100 (CPF's own publishing convention)."""
+    p = cpf["retirementSumProjection"]
+    base = p["baseSums"][tier]
+    return round(base * cohort_growth_factor(cohort_year, cpf) / 100) * 100
+
+
+def compute_for_cohort(
+    balance: float,
+    gender: str,
+    plan: str,
+    start_age: int,
+    life_exp_override: Optional[float],
+    cpf: dict,
+    cohort_year: int,
+) -> dict:
+    """Same as compute(), but for a balance denominated in a later cohort's
+    dollars: normalizes to 2026-equivalent dollars, runs the unchanged
+    2026-anchored calculation, then re-inflates the dollar outputs by the
+    same growth factor. cohort_year = 2026 (the base year) is a no-op."""
+    growth_factor = cohort_growth_factor(cohort_year, cpf)
+    result = compute(balance / growth_factor, gender, plan, start_age, life_exp_override, cpf)
+    return {
+        "monthly": result["monthly"] * growth_factor,
+        "premium": result["premium"] * growth_factor,
+        "le": result["le"],
+        "deferYears": result["deferYears"],
+    }
+
+
+def schedule_for_plan_and_cohort(
+    balance: float,
+    gender: str,
+    start_age: int,
+    life_exp_override: Optional[float],
+    plan: str,
+    cpf: dict,
+    cohort_year: int,
+) -> dict:
+    growth_factor = cohort_growth_factor(cohort_year, cpf)
+    sched = schedule_for_plan(balance / growth_factor, gender, start_age, life_exp_override, plan, cpf)
+    return {
+        "rows": [
+            {"age": r["age"], "cum": r["cum"] * growth_factor, "monthly": r["monthly"] * growth_factor}
+            for r in sched["rows"]
+        ],
+        "maxAge": sched["maxAge"],
+    }

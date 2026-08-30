@@ -5,17 +5,22 @@ import plotly.graph_objects as go
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cpf_life import scenarios as scenario_store
 from cpf_life.calculations import (
-    compute,
+    compute_for_cohort,
+    escape_dollars,
     fmt_money,
     load_assumptions,
-    schedule_for_plan,
+    projected_retirement_sum,
+    schedule_for_plan_and_cohort,
 )
 
 st.set_page_config(page_title="Retirement Simulator — CPF LIFE Navigator", page_icon="📈", layout="wide")
 
 cpf = load_assumptions()
+RSP = cpf["retirementSumProjection"]
+BASE_YEAR = RSP["baseCohortYear"]
+MIN_YEAR = RSP["supportedCohortYears"]["min"]
+MAX_YEAR = RSP["supportedCohortYears"]["max"]
 
 PLAN_LABELS = {"standard": "Standard Plan", "basic": "Basic Plan", "escalating": "Escalating Plan"}
 PLAN_LINE_STYLE = {
@@ -29,10 +34,13 @@ LE_COLOR = "#C7A24A"
 
 st.title("📈 CPF LIFE Retirement Simulator")
 st.caption("Model your monthly annuity payout, lifetime total, and how it compares across all three CPF LIFE plans.")
+st.caption(f"⚠️ Covers members turning age 55 between {MIN_YEAR} and {MAX_YEAR} only — see Methodology for why.")
 
 # ---- session defaults (also read by the Policy Explainer page for context) ----
 defaults = {
-    "balance": cpf["sliderRanges"]["balance"]["default"],
+    "current_age": 45,
+    "retirement_sum_tier": "FRS",
+    "manual_balance": RSP["baseSums"]["FRS"],
     "gender": "male",
     "plan": "standard",
     "start_age": 65,
@@ -47,12 +55,54 @@ left, right = st.columns([1, 1.4], gap="large")
 with left:
     st.subheader("Your inputs")
 
-    st.session_state["balance"] = st.number_input(
-        "Retirement Account balance ($)",
-        min_value=0,
-        step=1000,
-        value=int(st.session_state["balance"]),
+    current_age = st.number_input(
+        "Your current age", min_value=18, max_value=100,
+        value=int(st.session_state["current_age"]), step=1,
     )
+    st.session_state["current_age"] = current_age
+
+    if current_age > 55:
+        st.info("📋 Check your CPF account for your Retirement Account amount at age 55.")
+        manual_balance = st.number_input(
+            "Your Retirement Account balance at age 55 ($)",
+            min_value=0, step=1000, value=int(st.session_state["manual_balance"]),
+        )
+        st.session_state["manual_balance"] = manual_balance
+        balance = manual_balance
+        cohort_year = BASE_YEAR
+    else:
+        turning_55_year = BASE_YEAR + (55 - current_age)
+        if turning_55_year > MAX_YEAR:
+            st.warning(
+                f"This simulator only models members turning age 55 between {MIN_YEAR} and "
+                f"{MAX_YEAR}. At your current age, you'd turn 55 in {turning_55_year} — showing "
+                f"figures for the {MAX_YEAR} cohort (the latest supported) as an illustrative "
+                f"reference only."
+            )
+            cohort_year = MAX_YEAR
+        else:
+            cohort_year = turning_55_year
+            st.caption(f"You will turn 55 in **{cohort_year}**.")
+
+        tier = st.radio(
+            "Which retirement sum do you wish to meet at 55?",
+            options=["BRS", "FRS", "ERS"],
+            index=["BRS", "FRS", "ERS"].index(st.session_state["retirement_sum_tier"]),
+            horizontal=True,
+        )
+        st.session_state["retirement_sum_tier"] = tier
+
+        sums = {t: projected_retirement_sum(t, cohort_year, cpf) for t in ["BRS", "FRS", "ERS"]}
+        balance = sums[tier]
+        st.caption(escape_dollars(
+            f"Projected **{tier} {fmt_money(balance)}** for the {cohort_year} cohort "
+            f"(BRS {fmt_money(sums['BRS'])} · FRS {fmt_money(sums['FRS'])} · ERS {fmt_money(sums['ERS'])}), "
+            f"assuming {RSP['annualGrowthRate']*100:.1f}%/yr growth from CPF's published {BASE_YEAR} figures — "
+            f"this app's own projection, not a CPF-published number."
+        ))
+
+    st.session_state["balance"] = balance
+    st.session_state["cohort_year"] = cohort_year
 
     gender = st.radio("Gender", options=["male", "female"], format_func=str.title,
                        index=["male", "female"].index(st.session_state["gender"]), horizontal=True)
@@ -79,46 +129,16 @@ with left:
         )
         st.session_state["life_exp_override"] = le_override
 
-    st.divider()
-    st.subheader("Saved scenarios")
-    name = st.text_input("Name this scenario…", key="scenario_name")
-    if st.button("💾 Save scenario", use_container_width=True):
-        if name.strip():
-            scenario_store.save_scenario(name.strip(), {
-                "balance": st.session_state["balance"],
-                "gender": st.session_state["gender"],
-                "plan": st.session_state["plan"],
-                "start_age": st.session_state["start_age"],
-                "life_exp_override": st.session_state["life_exp_override"],
-            })
-            st.success(f'Saved "{name.strip()}".')
-        else:
-            st.error("Give the scenario a name first.")
-
-    saved = scenario_store.list_scenarios()
-    if saved:
-        for s in saved:
-            c1, c2, c3 = st.columns([3, 1, 1])
-            c1.markdown(f"<div style='padding-top:8px;'>{s['name']}</div>", unsafe_allow_html=True)
-            if c2.button("📂", key=f"load_{s['id']}", help=f'Load "{s["name"]}"'):
-                loaded = scenario_store.get_scenario(s["id"])
-                for k, v in loaded["inputs"].items():
-                    st.session_state[k] = v
-                st.rerun()
-            if c3.button("🗑️", key=f"del_{s['id']}", help=f'Delete "{s["name"]}"'):
-                scenario_store.delete_scenario(s["id"])
-                st.rerun()
-    else:
-        st.caption("No saved scenarios yet.")
-
 # ---- computation ----
-result = compute(
+result = compute_for_cohort(
     st.session_state["balance"], st.session_state["gender"], st.session_state["plan"],
     st.session_state["start_age"], st.session_state["life_exp_override"] or None, cpf,
+    st.session_state["cohort_year"],
 )
-sched = schedule_for_plan(
+sched = schedule_for_plan_and_cohort(
     st.session_state["balance"], st.session_state["gender"], st.session_state["start_age"],
     st.session_state["life_exp_override"] or None, st.session_state["plan"], cpf,
+    st.session_state["cohort_year"],
 )
 le = result["le"]
 le_row = next((r for r in sched["rows"] if r["age"] == le), sched["rows"][-1])
@@ -164,9 +184,9 @@ with right:
     fig = go.Figure()
     all_series = {}
     for p in ["standard", "basic", "escalating"]:
-        s = schedule_for_plan(
+        s = schedule_for_plan_and_cohort(
             st.session_state["balance"], st.session_state["gender"], st.session_state["start_age"],
-            st.session_state["life_exp_override"] or None, p, cpf,
+            st.session_state["life_exp_override"] or None, p, cpf, st.session_state["cohort_year"],
         )
         all_series[p] = s
 
@@ -206,7 +226,9 @@ st.divider()
 st.caption(
     "Figures are approximations derived from CPF Board's published 2026 payout anchors "
     "(BRS/FRS/ERS on the Standard Plan), interpolated for other balances and adjusted for "
-    "gender, plan, and deferral. CPF LIFE payouts are not calculated by public formula — "
-    "actual amounts depend on CPF Board's internal mortality tables, prevailing interest "
-    "rates, and your specific cohort, and can only be confirmed via your myCPF account."
+    "gender, plan, and deferral. For cohorts turning 55 after 2026, the retirement sum and "
+    "resulting payout are both this app's own projection (see Methodology), not CPF-published "
+    "figures. CPF LIFE payouts are not calculated by public formula — actual amounts depend on "
+    "CPF Board's internal mortality tables, prevailing interest rates, and your specific cohort, "
+    "and can only be confirmed via your myCPF account."
 )

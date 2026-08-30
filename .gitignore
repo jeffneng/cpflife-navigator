@@ -4,7 +4,6 @@ data/scenarios.sqlite
 *.log
 
 # capstone_app (Streamlit)
-capstone_app/scenarios.sqlite
 capstone_app/.streamlit/secrets.toml
 capstone_app/__pycache__/
 capstone_app/**/__pycache__/

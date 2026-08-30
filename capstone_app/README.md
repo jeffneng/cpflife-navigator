@@ -3,15 +3,16 @@
 AI Bootcamp Capstone (Project Type 2) submission — an interactive, LLM-powered guide to
 Singapore's CPF LIFE national annuity scheme.
 
-- **Use case 1 — Retirement Simulator:** enter your RA balance, gender, plan, and payout
-  start age; see monthly/annual/lifetime payout figures, a payout-by-age snapshot, and
-  all three CPF LIFE plans compared on one chart. Save and reload named scenarios.
+- **Use case 1 — Retirement Simulator:** enter your current age, which retirement sum
+  (BRS/FRS/ERS) you're aiming for, gender, plan, and payout start age; see
+  monthly/annual/lifetime payout figures, a payout-by-age snapshot, and all three CPF
+  LIFE plans compared on one chart.
 - **Use case 2 — Policy Explainer:** ask free-text questions about CPF LIFE and get
   answers from an LLM grounded in the same sourced data as the simulator, personalized
   to your current scenario when available.
 
-See the in-app **About Us** and **Methodology** pages for scope, data sources, and
-implementation details.
+Covers members turning age 55 between 2026 and 2046 only — see the in-app **About Us**
+and **Methodology** pages for scope, data sources, and implementation details.
 
 ## Run it locally
 

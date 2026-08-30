@@ -4,7 +4,7 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cpf_life.calculations import compute, fmt_money, load_assumptions
+from cpf_life.calculations import compute_for_cohort, fmt_money, load_assumptions
 
 st.set_page_config(page_title="Policy Explainer — CPF LIFE Navigator", page_icon="💬", layout="wide")
 
@@ -61,6 +61,13 @@ KEY FACTORS THIS APP APPLIES ON TOP OF THE ANCHORS ABOVE:
   this app's own approximation of CPF's general description — CPF does not publish the exact
   trajectory.
 - Life expectancy assumption: Male {cpf['lifeExpectancy']['male']}, Female {cpf['lifeExpectancy']['female']}.
+- Retirement sums (BRS/FRS/ERS) beyond the {cpf['retirementSumProjection']['baseCohortYear']} cohort
+  are NOT published by CPF. This app projects them forward at an assumed
+  {cpf['retirementSumProjection']['annualGrowthRate']*100:.1f}%/yr from the {cpf['retirementSumProjection']['baseCohortYear']}
+  figures (BRS ${cpf['retirementSumProjection']['baseSums']['BRS']:,}, FRS ${cpf['retirementSumProjection']['baseSums']['FRS']:,},
+  ERS ${cpf['retirementSumProjection']['baseSums']['ERS']:,}), rounded to the nearest $100 — this app's own
+  assumption, not a CPF projection. This app only supports members turning 55 between
+  {cpf['retirementSumProjection']['supportedCohortYears']['min']} and {cpf['retirementSumProjection']['supportedCohortYears']['max']}.
 
 IMPORTANT CAVEATS TO CONVEY WHEN RELEVANT: CPF LIFE payouts are not calculated by a published
 public formula. Real payouts depend on CPF Board's internal mortality tables and prevailing
@@ -77,16 +84,23 @@ def build_scenario_context() -> str | None:
     """Pull the user's current scenario from the Retirement Simulator page's
     session state, if they've visited it, so answers can be personalized —
     e.g. 'why is *my* Basic Plan payout dropping?' """
-    keys = ["balance", "gender", "plan", "start_age", "life_exp_override"]
+    keys = ["balance", "gender", "plan", "start_age", "life_exp_override", "cohort_year", "current_age"]
     if not all(k in st.session_state for k in keys):
         return None
-    result = compute(
+    result = compute_for_cohort(
         st.session_state["balance"], st.session_state["gender"], st.session_state["plan"],
         st.session_state["start_age"], st.session_state["life_exp_override"] or None, cpf,
+        st.session_state["cohort_year"],
+    )
+    cohort_note = (
+        f"turning 55 in {st.session_state['cohort_year']}, aiming for the "
+        f"{st.session_state.get('retirement_sum_tier', '?')}"
+        if st.session_state["current_age"] <= 55
+        else "already past 55 (balance entered manually)"
     )
     return (
         f"The user's current Retirement Simulator scenario: RA balance "
-        f"{fmt_money(st.session_state['balance'])}, {st.session_state['gender'].title()}, "
+        f"{fmt_money(st.session_state['balance'])} ({cohort_note}), {st.session_state['gender'].title()}, "
         f"{st.session_state['plan'].title()} Plan, payout starting at age "
         f"{st.session_state['start_age']}. This computes to an estimated starting monthly "
         f"payout of {fmt_money(result['monthly'])}, assuming life expectancy "

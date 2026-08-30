@@ -10,7 +10,8 @@
     "2026-08-30: Rebuilt payoutAnchors from CPF Board's published reference table (6 points spanning $50,000-$440,800, each with both age-65 and age-70 payouts — see `source`). This supersedes the earlier 3-point table and the unsourced $1,759 FRS/male figure used in the previous recalibration; the FRS anchor is now $1,780/mo, matching CPF's cited figure.",
     "2026-08-30: the app no longer uses a single flat deferral bonus rate. Since payoutAnchors now carries both monthlyPayout (age 65) and monthlyPayoutAt70 for every balance point, the app interpolates each curve independently and derives the compound annual deferral rate implied by that specific balance's own age-65 -> age-70 ratio (range 5.89%-6.46% across these anchors, average 6.06% — see deferral.impliedAverageAnnualRate below, kept for reference only). This makes payouts at start ages 65 and 70 land exactly on CPF's published figures at every anchor balance, not just approximately.",
     "2026-08-30: CPF Board does not publish a female payout table — payoutAnchors above (and the deferral rates derived from them) are male figures only. genderFactor.female is set to 0.93 (a flat 7% reduction), the midpoint of CPF's own general guidance that female payouts run 'roughly 6% to 8% lower' than male for the same RA balance, due to longer payout duration. CPF's own worked example: ERS $440,800 pays male $3,440/mo vs female approx. $3,180-$3,250/mo — 0.93 lands at $3,199, inside that range. Replace with a real female-specific table if CPF Board ever publishes one; until then this is a rough uniform approximation, not calibrated per balance the way the male anchors are.",
-    "2026-08-30: added `basicPlan` to model the Basic Plan's declining payout — see basicPlan.description. CPF does not publish Basic Plan's payout trajectory (only the qualitative shape: lower initial payout, decline once combined balances fall below $60,000, RA-funded until age 90 then premium-pool-funded), so this is a stylized approximation, not a reproduction of CPF's internal calculation."
+    "2026-08-30: added `basicPlan` to model the Basic Plan's declining payout — see basicPlan.description. CPF does not publish Basic Plan's payout trajectory (only the qualitative shape: lower initial payout, decline once combined balances fall below $60,000, RA-funded until age 90 then premium-pool-funded), so this is a stylized approximation, not a reproduction of CPF's internal calculation.",
+    "2026-08-30: added `retirementSumProjection`, used only by the capstone_app (Streamlit) frontend — see its description. CPF has not published BRS/FRS/ERS figures for any cohort beyond the one turning 55 in 2026 (`payoutAnchors`' BRS/FRS/ERS-labelled rows are exactly that base cohort's figures), so the Streamlit app projects those three sums forward for members turning 55 in later years, and the Node/JS prototype (src/, server/) is unaffected — it still takes a raw balance input."
   ],
 
   "payoutAnchors": [
@@ -56,6 +57,14 @@
   "lifeExpectancy": {
     "male": 85,
     "female": 88
+  },
+
+  "retirementSumProjection": {
+    "baseCohortYear": 2026,
+    "baseSums": { "BRS": 110200, "FRS": 220400, "ERS": 440800 },
+    "annualGrowthRate": 0.035,
+    "supportedCohortYears": { "min": 2026, "max": 2046 },
+    "description": "For a member turning 55 in `cohortYear` (2026-2046), each retirement sum is projected as round(baseSums[tier] * (1 + annualGrowthRate)^(cohortYear - baseCohortYear) / 100) * 100 — compounding annually from the published 2026 figures and rounded to the nearest $100, matching CPF's own publishing convention. 3.5%/yr is this app's own assumption (not a CPF projection), chosen to roughly track CPF's recent historical FRS increases; there is no published figure beyond the 2026 cohort. When a projected (non-2026) balance is run through `payoutAnchors` for a payout estimate, the app first divides it by the same cohort growth factor (to '2026-equivalent' dollars), applies the interpolation and Basic Plan drawdown model unchanged, then multiplies the result back up by the growth factor — i.e. it assumes a future cohort's whole payout schedule (including the Basic Plan's $60,000 self-funded threshold) scales up with the retirement sums, since CPF has not published future payout tables either. Members turning 55 outside 2026-2046 are beyond this app's supported range entirely."
   },
 
   "sliderRanges": {
