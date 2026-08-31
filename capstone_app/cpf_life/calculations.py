@@ -11,6 +11,7 @@ model makes — CPF LIFE payouts are not produced by a public formula.
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -252,4 +253,91 @@ def schedule_for_plan_and_cohort(
             for r in sched["rows"]
         ],
         "maxAge": sched["maxAge"],
+    }
+
+
+# ---- OA/SA -> Retirement Sum readiness projection ----
+# A pre-55 "will I make it" calculator: projects OA and SA forward month by
+# month to age 55, then applies CPF's actual RA-formation waterfall (SA
+# first, then OA, down to an optional retained OA floor) against a chosen
+# retirement sum tier. This is the tool the Policy Explainer's LLM calls
+# for questions involving specific balances/contributions/rates — the LLM
+# never does this arithmetic itself; this function does, deterministically.
+
+def _months_between(start: date, end: date) -> int:
+    months = (end.year - start.year) * 12 + (end.month - start.month)
+    if end.day < start.day:
+        months -= 1
+    return months
+
+
+def project_retirement_readiness(
+    birthdate: str,
+    current_oa: float,
+    current_sa: float,
+    monthly_oa_contribution: float,
+    monthly_sa_contribution: float,
+    target_tier: str,
+    cpf: dict,
+    oa_annual_rate: float = 0.025,
+    sa_annual_rate: float = 0.04,
+    oa_retain_amount: float = 0.0,
+    as_of: Optional[date] = None,
+) -> dict:
+    """Project OA/SA to age 55 and check readiness against a retirement sum.
+
+    birthdate: "YYYY-MM-DD". target_tier: "BRS" | "FRS" | "ERS".
+    Assumptions (approximations, not CPF's exact mechanics):
+    - Monthly compounding of the given annual rates (contribution added,
+      then interest applied, each month) — not CPF's actual interest
+      crediting schedule (monthly computation, annual crediting, based on
+      lowest monthly balance).
+    - Does not add CPF's extra interest tiers (e.g. +1%/+2% on the first
+      $60,000/$30,000 of combined balances) unless already folded into the
+      rates you supply — pass blended rates if you want that reflected.
+    - At 55, SA is used to form the Retirement Account before OA (matching
+      CPF's real order), and OA is drawn no lower than oa_retain_amount.
+    - The retirement sum target is this app's own projection for the
+      member's cohort year (see retirementSumProjection), not a published
+      CPF figure, for any cohort after the base year.
+    """
+    as_of = as_of or date.today()
+    bdate = date.fromisoformat(birthdate)
+    turn_55_date = bdate.replace(year=bdate.year + 55)
+    months = max(0, _months_between(as_of, turn_55_date))
+
+    rsp = cpf["retirementSumProjection"]
+    min_year, max_year = rsp["supportedCohortYears"]["min"], rsp["supportedCohortYears"]["max"]
+    cohort_year = turn_55_date.year
+    out_of_range = not (min_year <= cohort_year <= max_year)
+    cohort_year_used = min(max(cohort_year, min_year), max_year)
+    target_sum = projected_retirement_sum(target_tier, cohort_year_used, cpf)
+
+    oa, sa = float(current_oa), float(current_sa)
+    for _ in range(months):
+        oa = oa * (1 + oa_annual_rate / 12) + monthly_oa_contribution
+        sa = sa * (1 + sa_annual_rate / 12) + monthly_sa_contribution
+
+    sa_used = min(sa, target_sum)
+    remaining = target_sum - sa_used
+    available_oa = max(0.0, oa - oa_retain_amount)
+    oa_used = min(remaining, available_oa)
+    ra_formed = sa_used + oa_used
+    shortfall = max(0.0, target_sum - ra_formed)
+
+    return {
+        "turn_55_date": turn_55_date.isoformat(),
+        "months_projected": months,
+        "cohort_year": cohort_year,
+        "cohort_outside_supported_range": out_of_range,
+        "oa_at_55": round(oa, 2),
+        "sa_at_55": round(sa, 2),
+        "target_tier": target_tier,
+        "target_sum": target_sum,
+        "sa_used_for_ra": round(sa_used, 2),
+        "oa_used_for_ra": round(oa_used, 2),
+        "ra_formed": round(ra_formed, 2),
+        "shortfall": round(shortfall, 2),
+        "meets_target": shortfall <= 0.5,
+        "oa_remaining_after_transfer": round(oa - oa_used, 2),
     }

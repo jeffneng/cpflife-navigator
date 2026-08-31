@@ -157,6 +157,30 @@ FLOWCHART_2 = """
 """
 components.html(FLOWCHART_2, height=290)
 
+st.markdown(escape_dollars(
+    """
+### Tool calling: letting the LLM run real calculations instead of guessing
+
+Some questions need arithmetic an LLM can't reliably do in its head — e.g. "will my OA and
+SA savings meet the Enhanced Retirement Sum by 55, given my contributions and interest
+rates?" involves compounding dozens of monthly balances and then applying CPF's actual
+Retirement Account formation order (Special Account first, then Ordinary Account, down to
+any amount the member wants to retain in OA). Rather than asking the model to do this
+itself — which risks silently wrong arithmetic — the Policy Explainer gives it a callable
+tool, `project_retirement_readiness` (OpenAI function calling): the model extracts the
+inputs from the user's question, calls the tool, this app's own Python code does the
+projection deterministically, and the result is fed back to the model to explain in plain
+English. The numbers in the final answer are computed by `cpf_life/calculations.py`, not by
+the LLM.
+
+That tool assumes monthly compounding of whatever OA/SA rates the user states (defaulting
+to CPF's standard 2.5%/4% if unstated), applies CPF's real SA-then-OA transfer order at 55,
+and reuses this app's own BRS/FRS/ERS cohort projection (see above) for the target sum —
+it does not model CPF's extra interest tiers unless the user's stated rates already reflect
+them, and it is this app's own simplified projection, not an official CPF calculation.
+"""
+))
+
 st.divider()
 
 st.markdown(
@@ -175,7 +199,9 @@ st.markdown(
   prompt is built fresh from `data/cpf-anchors-2026.json` on every call (see the
   Explainer's `build_system_prompt()`), so the model can't drift from the app's own
   numbers, and the user's current simulator scenario (if any) is appended as
-  additional context for personalization.
+  additional context for personalization. It can also call a tool,
+  `project_retirement_readiness`, for questions needing real arithmetic (see above) —
+  the calculation runs in this app's own Python, not the model.
 - **No personally identifiable information** is collected or required, and nothing is
   persisted between sessions — all inputs (age, retirement sum tier, gender, plan,
   start age) are generic scenario parameters, not identity data, and live only in the
