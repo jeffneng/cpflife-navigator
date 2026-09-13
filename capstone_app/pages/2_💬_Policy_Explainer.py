@@ -11,6 +11,7 @@ from cpf_life.calculations import (
     load_assumptions,
     project_retirement_readiness,
 )
+from rag.retrieval import index_exists, retrieve_chunks
 
 st.set_page_config(page_title="Policy Explainer — CPF LIFE Navigator", page_icon="💬", layout="wide")
 
@@ -95,9 +96,28 @@ You are not a licensed financial advisor — do not give personalized investment
 advice beyond reporting the tool's numbers; explain mechanics and let the user draw their own
 conclusions.
 
+RESEARCH EXCERPTS: you may also receive excerpts retrieved from a separate "CPF LIFE Deep
+Research Briefing" (a longer research document compiled from CPF Board, MOF/gov.sg, academic,
+and financial-industry sources, current to September 2026) relevant to the user's specific
+question — use them for context CPF's anchors alone don't cover (history, plan comparisons,
+comparisons with private annuities/SRS/property, advantages/drawbacks, policy reform
+trajectory). Prefer the PUBLISHED PAYOUT ANCHORS above for exact payout/retirement-sum numbers;
+use the research excerpts for qualitative and comparative context, and say when a point comes
+from that briefing rather than CPF's own published figures.
+
 Keep answers concise, plain-English, and specific. Use numbers from the data above where they
 help. If the user's current simulator scenario is provided below, use it to personalize your
 explanation."""
+
+
+def format_retrieved_chunks(chunks: list[dict]) -> str:
+    if not chunks:
+        return ""
+    body = "\n\n---\n\n".join(c["text"] for c in chunks)
+    return (
+        "RELEVANT EXCERPTS FROM THE CPF LIFE DEEP RESEARCH BRIEFING "
+        "(retrieved for this specific question):\n\n" + body
+    )
 
 
 TOOLS = [
@@ -185,10 +205,17 @@ if scenario_ctx:
 else:
     st.caption("💡 Tip: visit the Retirement Simulator first, and answers here can reference your own scenario.")
 
+if not index_exists():
+    st.caption(
+        "⚠️ Research briefing index not found — run `rag/ingest.py` to build it. "
+        "Answers will still use the core CPF anchors data and calculation tool, just without "
+        "the deeper research excerpts."
+    )
+
 EXAMPLE_QUESTIONS = [
     "What's the difference between Standard, Basic, and Escalating plans?",
     "Why does the Basic Plan's payout decrease over time?",
-    "Should I defer my payout from 65 to 70?",
+    "How does CPF LIFE compare to a private annuity?",
     "Will my OA and SA savings meet the Enhanced Retirement Sum by 55?",
 ]
 
@@ -236,6 +263,13 @@ if user_input:
                 messages = [{"role": "system", "content": build_system_prompt()}]
                 if scenario_ctx:
                     messages.append({"role": "system", "content": scenario_ctx})
+
+                # RAG: retrieve chunks from the research briefing relevant to
+                # this specific question and inject them as extra context.
+                retrieved = retrieve_chunks(user_input, api_key, k=4)
+                if retrieved:
+                    messages.append({"role": "system", "content": format_retrieved_chunks(retrieved)})
+
                 # include recent chat history for follow-up questions
                 for m in st.session_state["chat_history"][-8:]:
                     messages.append(m)
@@ -284,6 +318,13 @@ if user_input:
 
                 answer = msg.content
                 render_markdown(answer)
+
+                if retrieved:
+                    with st.expander(f"📚 {len(retrieved)} excerpt(s) retrieved from the research briefing"):
+                        for c in retrieved:
+                            st.caption(f"— {c['source']}, chunk #{c['chunk_index']}")
+                            render_markdown(c["text"])
+                            st.divider()
             except Exception as e:
                 answer = f"⚠️ Something went wrong calling the LLM: {e}"
                 st.error(answer)

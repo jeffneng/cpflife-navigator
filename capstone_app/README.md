@@ -9,7 +9,9 @@ Singapore's CPF LIFE national annuity scheme.
   LIFE plans compared on one chart.
 - **Use case 2 — Policy Explainer:** ask free-text questions about CPF LIFE and get
   answers from an LLM grounded in the same sourced data as the simulator, personalized
-  to your current scenario when available.
+  to your current scenario when available, a tool-calling calculator for CPF Ordinary/
+  Special Account retirement-readiness questions, and a LangChain + Chroma RAG pipeline
+  over a 16-page CPF LIFE research briefing for qualitative/comparative questions.
 
 Covers members turning age 55 between 2026 and 2046 only — see the in-app **About Us**
 and **Methodology** pages for scope, data sources, and implementation details.
@@ -31,6 +33,21 @@ The Retirement Simulator works without any API key. The Policy Explainer needs
 `OPENAI_API_KEY` set (via `.streamlit/secrets.toml` locally, or Streamlit Community
 Cloud's Secrets settings when deployed) — without it, it shows a clear setup message
 instead of failing silently.
+
+### Rebuilding the RAG index
+
+The Policy Explainer's research-briefing retrieval reads a pre-built Chroma index
+(`rag/chroma_db/`), committed to the repo so production never needs to re-embed. Only
+rebuild it if you change the source document at `rag/source_documents/`:
+
+```bash
+cd capstone_app
+OPENAI_API_KEY=sk-... python3 rag/ingest.py
+```
+
+If `rag/chroma_db/` doesn't exist yet, the Policy Explainer still works — it just skips
+the research-briefing excerpts and relies on the core CPF anchors data and calculation
+tool, with a note in the UI saying so.
 
 ## Deploying to Streamlit Community Cloud
 

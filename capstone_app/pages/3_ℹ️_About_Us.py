@@ -76,6 +76,7 @@ instead (see the "Your current age" input on the Retirement Simulator).
 | [CPF Board — "How does the CPF LIFE Basic Plan work"](https://www.cpf.gov.sg/service/article/how-does-the-cpf-life-basic-plan-work) | Basic Plan mechanics: premium fraction, self-funded drawdown, $60,000 threshold, age-90 transition |
 | [DBS — "What is CPF LIFE"](https://www.dbs.com.sg/personal/articles/nav/retirement/what-is-cpf-life) | Corroborating explainer for Basic Plan mechanics |
 | CPF Board's general guidance that female payouts run "roughly 6% to 8% lower" than male | Female payout approximation (no official female table is published) |
+| CPF LIFE Deep Research Briefing (compiled from CPF Board, MOF/gov.sg, peer-reviewed research, and financial-industry sources, September 2026) | Retrieval corpus for the Policy Explainer's RAG pipeline — history, plan comparisons, alternatives, advantages/drawbacks, reform trajectory |
 
 Every number this app models beyond a direct citation is documented — with its
 assumption and its source — in `data/cpf-anchors-2026.json` (in this project's
@@ -90,9 +91,11 @@ repository) and explained further in **Methodology**.
 
 ## Tech stack
 
-Python, Streamlit (multi-page app), Plotly (charts), OpenAI API (gpt-4o-mini) for the
-Policy Explainer. All CPF assumptions live in one JSON file, so the app can be
-recalibrated yearly against CPF Board's updated figures without touching code.
+Python, Streamlit (multi-page app), Plotly (charts), OpenAI API (gpt-4o-mini for chat,
+text-embedding-3-small for retrieval) for the Policy Explainer, and a LangChain + Chroma
+RAG pipeline over the research briefing above (see Methodology for the full five-stage
+breakdown). All CPF assumptions live in one JSON file, so the app can be recalibrated
+yearly against CPF Board's updated figures without touching code.
 
 ## Disclaimer
 

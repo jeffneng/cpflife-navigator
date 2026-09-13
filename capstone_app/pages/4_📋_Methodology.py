@@ -178,6 +178,44 @@ to CPF's standard 2.5%/4% if unstated), applies CPF's real SA-then-OA transfer o
 and reuses this app's own BRS/FRS/ERS cohort projection (see above) for the target sum —
 it does not model CPF's extra interest tiers unless the user's stated rates already reflect
 them, and it is this app's own simplified projection, not an official CPF calculation.
+
+### RAG pipeline: retrieval-augmented answers from a deep research briefing
+
+The structured facts above (payout anchors, factors, retirement sum projections) cover exact
+numbers, but not the qualitative and comparative material a member might ask about — CPF
+LIFE's history, how the three plans compare in practice, how CPF LIFE stacks up against
+private annuities or a DIY SRS portfolio, its advantages and drawbacks, or where policy is
+headed. For that, the Policy Explainer runs a genuine RAG (retrieval-augmented generation)
+pipeline, built with LangChain, over a 16-page **CPF LIFE Deep Research Briefing** (compiled
+from CPF Board, MOF/gov.sg, peer-reviewed research, and financial-industry sources, current
+to September 2026). It covers five distinct stages:
+
+1. **Load** — `rag/ingest.py` reads the briefing (a `.docx`) with LangChain's
+   `Docx2txtLoader`.
+2. **Split / chunk** — `RecursiveCharacterTextSplitter` breaks the loaded text into ~1,000
+   character passages with 150 characters of overlap (so a fact split across a chunk
+   boundary still appears whole in at least one chunk), producing 43 chunks from this
+   briefing.
+3. **Store** — each chunk is embedded (OpenAI `text-embedding-3-small`) and persisted to a
+   **Chroma** vector database (`rag/chroma_db/`), committed to the repo so Streamlit Cloud
+   loads it directly rather than re-embedding on every deploy.
+4. **Retrieve** — for each user question, `rag/retrieval.py` embeds the question and runs a
+   similarity search against that Chroma collection, returning the top 4 most relevant
+   chunks.
+5. **Output** — those chunks are injected into the system prompt as labelled research
+   excerpts (distinct from the core CPF anchors data), and the model is instructed to use
+   them for context and comparisons while still preferring the anchors/tool for exact
+   figures. The chat UI shows exactly which excerpts were retrieved for each answer, in a
+   "📚 N excerpt(s) retrieved" expander under the response — so the retrieval step is
+   visible, not a black box.
+
+`rag/ingest.py` (stages 1-3) is run once locally, whenever the source document changes, not
+on every app start — Streamlit Cloud only ever performs stage 4 (retrieval) at runtime. The
+embeddings step deliberately does not use the `langchain-openai` package: it requires an
+`openai` SDK version range that currently ships a broken bundled HTTP client (a genuine
+upstream bug, reproduced consistently and unrelated to this app), so `rag/embeddings.py`
+implements LangChain's `Embeddings` interface directly against this app's own known-working,
+pinned `openai` client instead.
 """
 ))
 
@@ -202,6 +240,9 @@ st.markdown(
   additional context for personalization. It can also call a tool,
   `project_retirement_readiness`, for questions needing real arithmetic (see above) —
   the calculation runs in this app's own Python, not the model.
+- **RAG:** LangChain (document loading, chunking, retrieval) + Chroma (vector storage) +
+  OpenAI embeddings, over a 16-page CPF LIFE research briefing (see above for the full
+  five-stage pipeline).
 - **No personally identifiable information** is collected or required, and nothing is
   persisted between sessions — all inputs (age, retirement sum tier, gender, plan,
   start age) are generic scenario parameters, not identity data, and live only in the
