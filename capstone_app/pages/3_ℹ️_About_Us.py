@@ -4,9 +4,11 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from cpf_life.auth import require_password
 from cpf_life.calculations import escape_dollars, load_assumptions
 
 st.set_page_config(page_title="About Us — CPF LIFE Navigator", page_icon="ℹ️", layout="wide")
+require_password()
 
 cpf = load_assumptions()
 rsp = cpf["retirementSumProjection"]

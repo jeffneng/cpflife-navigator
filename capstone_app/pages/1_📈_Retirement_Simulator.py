@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from cpf_life.auth import require_password
 from cpf_life.calculations import (
     compute_for_cohort,
     escape_dollars,
@@ -15,6 +16,7 @@ from cpf_life.calculations import (
 )
 
 st.set_page_config(page_title="Retirement Simulator — CPF LIFE Navigator", page_icon="📈", layout="wide")
+require_password()
 
 cpf = load_assumptions()
 RSP = cpf["retirementSumProjection"]

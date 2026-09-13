@@ -5,9 +5,11 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from cpf_life.auth import require_password
 from cpf_life.calculations import escape_dollars
 
 st.set_page_config(page_title="Methodology — CPF LIFE Navigator", page_icon="📋", layout="wide")
+require_password()
 
 st.title("📋 Methodology")
 

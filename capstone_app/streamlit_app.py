@@ -4,6 +4,7 @@ from pathlib import Path
 import streamlit as st
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from cpf_life.auth import require_password
 from cpf_life.calculations import load_assumptions
 
 st.set_page_config(
@@ -11,6 +12,7 @@ st.set_page_config(
     page_icon="🏛️",
     layout="wide",
 )
+require_password()
 
 cpf = load_assumptions()
 rsp = cpf["retirementSumProjection"]
